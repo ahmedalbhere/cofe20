@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // عناصر واجهة المستخدم
     const ordersTab = document.getElementById('ordersTab');
     const menuTab = document.getElementById('menuTab');
     const tabButtons = document.querySelectorAll('.tab-btn');
@@ -17,34 +18,70 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemPriceInput = document.getElementById('itemPrice');
     const itemDescriptionInput = document.getElementById('itemDescription');
 
+    // متغيرات الحالة
     let isEditMode = false;
     let currentEditItemId = null;
 
-    // تبديل بين تبويبات الإدارة
-    tabButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const tabId = this.getAttribute('data-tab');
-            
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-            
-            ordersTab.classList.remove('active');
-            menuTab.classList.remove('active');
-            
-            if (tabId === 'orders') {
-                ordersTab.classList.add('active');
-                loadOrders();
-            } else {
-                menuTab.classList.add('active');
-                loadMenuItems();
-            }
-        });
-    });
+    // تهيئة الصفحة
+    init();
 
-    // تحميل الطلبات
+    function init() {
+        setupEventListeners();
+        loadOrders();
+    }
+
+    function setupEventListeners() {
+        // تبديل التبويبات
+        tabButtons.forEach(button => {
+            button.addEventListener('click', handleTabSwitch);
+        });
+
+        // تصفية الطلبات
+        orderStatusFilter.addEventListener('change', loadOrders);
+
+        // إدارة القائمة
+        addMenuItemBtn.addEventListener('click', () => openMenuItemModal());
+        cancelMenuItemBtn.addEventListener('click', closeMenuItemModal);
+        menuItemForm.addEventListener('submit', handleMenuItemSubmit);
+
+        // تفاعلات القائمة
+        menuItemsList.addEventListener('click', handleMenuItemsListClick);
+
+        // تفاعلات الطلبات
+        ordersList.addEventListener('change', handleOrderStatusChange);
+        ordersList.addEventListener('click', handleOrderActions);
+    }
+
+    // معالجة تبديل التبويبات
+    function handleTabSwitch(e) {
+        const tabId = e.target.getAttribute('data-tab');
+        
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        e.target.classList.add('active');
+        
+        ordersTab.classList.remove('active');
+        menuTab.classList.remove('active');
+        
+        if (tabId === 'orders') {
+            ordersTab.classList.add('active');
+            loadOrders();
+        } else {
+            menuTab.classList.add('active');
+            loadMenuItems();
+        }
+    }
+
+    // تحميل الطلبات من Firebase
     function loadOrders() {
-        database.ref('orders').on('value', (snapshot) => {
+        showLoading(ordersList);
+        
+        database.ref('orders').orderByChild('timestamp').on('value', (snapshot) => {
             ordersList.innerHTML = '';
+            
+            if (!snapshot.exists()) {
+                ordersList.innerHTML = '<p class="no-data">لا توجد طلبات حالية</p>';
+                return;
+            }
             
             snapshot.forEach((childSnapshot) => {
                 const order = childSnapshot.val();
@@ -58,10 +95,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 renderOrder(order);
             });
+        }, (error) => {
+            showMessage('حدث خطأ أثناء تحميل الطلبات: ' + error.message, 'error');
         });
     }
 
-    // عرض الطلب
+    // عرض الطلب في الواجهة
     function renderOrder(order) {
         const orderElement = document.createElement('div');
         orderElement.className = `order-card ${order.status}`;
@@ -97,61 +136,62 @@ document.addEventListener('DOMContentLoaded', function() {
         ordersList.appendChild(orderElement);
     }
 
-    // نص حالة الطلب
-    function getStatusText(status) {
-        const statusMap = {
-            'pending': 'قيد الانتظار',
-            'preparing': 'قيد التحضير',
-            'ready': 'جاهزة للتقديم',
-            'completed': 'مكتملة'
-        };
-        return statusMap[status] || status;
-    }
-
-    // تنسيق الوقت
-    function formatTime(timestamp) {
-        if (!timestamp) return '';
-        const date = new Date(timestamp);
-        return date.toLocaleTimeString('ar-EG');
-    }
-
-    // تحديث حالة الطلب
-    ordersList.addEventListener('change', function(e) {
+    // معالجة تغيير حالة الطلب
+    function handleOrderStatusChange(e) {
         if (e.target.classList.contains('status-select')) {
             const orderId = e.target.getAttribute('data-order-id');
             const newStatus = e.target.value;
             
-            database.ref(`orders/${orderId}/status`).set(newStatus);
+            database.ref(`orders/${orderId}/status`).set(newStatus)
+                .then(() => {
+                    showMessage('تم تحديث حالة الطلب بنجاح', 'success');
+                })
+                .catch(error => {
+                    showMessage('حدث خطأ أثناء تحديث الحالة: ' + error.message, 'error');
+                });
         }
-    });
+    }
 
-    // حذف الطلب
-    ordersList.addEventListener('click', function(e) {
+    // معالجة إجراءات الطلب (حذف)
+    function handleOrderActions(e) {
         if (e.target.classList.contains('delete-order-btn')) {
+            const orderId = e.target.getAttribute('data-order-id');
+            
             if (confirm('هل أنت متأكد من حذف هذا الطلب؟')) {
-                const orderId = e.target.getAttribute('data-order-id');
-                database.ref(`orders/${orderId}`).remove();
+                database.ref(`orders/${orderId}`).remove()
+                    .then(() => {
+                        showMessage('تم حذف الطلب بنجاح', 'success');
+                    })
+                    .catch(error => {
+                        showMessage('حدث خطأ أثناء حذف الطلب: ' + error.message, 'error');
+                    });
             }
         }
-    });
+    }
 
-    // تصفية الطلبات حسب الحالة
-    orderStatusFilter.addEventListener('change', loadOrders);
-
-    // تحميل عناصر القائمة
+    // تحميل عناصر القائمة من Firebase
     function loadMenuItems() {
+        showLoading(menuItemsList);
+        
         database.ref('menu').on('value', (snapshot) => {
             menuItemsList.innerHTML = '';
+            
+            if (!snapshot.exists()) {
+                menuItemsList.innerHTML = '<p class="no-data">لا توجد أصناف في القائمة</p>';
+                return;
+            }
             
             snapshot.forEach((childSnapshot) => {
                 const item = childSnapshot.val();
                 item.id = childSnapshot.key;
                 renderMenuItem(item);
             });
+        }, (error) => {
+            showMessage('حدث خطأ أثناء تحميل القائمة: ' + error.message, 'error');
         });
     }
 
-    // عرض عنصر القائمة
+    // عرض عنصر القائمة في الواجهة
     function renderMenuItem(item) {
         const itemElement = document.createElement('div');
         itemElement.className = 'menu-item-card';
@@ -170,14 +210,27 @@ document.addEventListener('DOMContentLoaded', function() {
         menuItemsList.appendChild(itemElement);
     }
 
-    // نص فئة العنصر
-    function getCategoryText(category) {
-        const categoryMap = {
-            'hot-drinks': 'مشروبات ساخنة',
-            'cold-drinks': 'مشروبات باردة',
-            'food': 'أطعمة'
-        };
-        return categoryMap[category] || category;
+    // معالجة النقر على عناصر القائمة (تعديل/حذف)
+    function handleMenuItemsListClick(e) {
+        if (e.target.classList.contains('edit-item-btn')) {
+            const itemId = e.target.getAttribute('data-item-id');
+            database.ref(`menu/${itemId}`).once('value', (snapshot) => {
+                openMenuItemModal(snapshot.val());
+            });
+        }
+        
+        if (e.target.classList.contains('delete-item-btn')) {
+            const itemId = e.target.getAttribute('data-item-id');
+            if (confirm('هل أنت متأكد من حذف هذا الصنف؟')) {
+                database.ref(`menu/${itemId}`).remove()
+                    .then(() => {
+                        showMessage('تم حذف الصنف بنجاح', 'success');
+                    })
+                    .catch(error => {
+                        showMessage('حدث خطأ أثناء حذف الصنف: ' + error.message, 'error');
+                    });
+            }
+        }
     }
 
     // فتح نموذج إضافة/تعديل عنصر
@@ -199,65 +252,100 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         menuItemModal.classList.remove('hidden');
+        itemNameInput.focus();
     }
-
-    // إضافة عنصر جديد
-    addMenuItemBtn.addEventListener('click', function() {
-        openMenuItemModal();
-    });
-
-    // تعديل عنصر موجود
-    menuItemsList.addEventListener('click', function(e) {
-        if (e.target.classList.contains('edit-item-btn')) {
-            const itemId = e.target.getAttribute('data-item-id');
-            database.ref(`menu/${itemId}`).once('value', (snapshot) => {
-                openMenuItemModal(snapshot.val());
-            });
-        }
-    });
-
-    // حذف عنصر
-    menuItemsList.addEventListener('click', function(e) {
-        if (e.target.classList.contains('delete-item-btn')) {
-            const itemId = e.target.getAttribute('data-item-id');
-            if (confirm('هل أنت متأكد من حذف هذا الصنف؟')) {
-                database.ref(`menu/${itemId}`).remove();
-            }
-        }
-    });
-
-    // حفظ العنصر
-    menuItemForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const itemData = {
-            name: itemNameInput.value.trim(),
-            category: itemCategoryInput.value,
-            price: parseFloat(itemPriceInput.value),
-            description: itemDescriptionInput.value.trim() || null
-        };
-        
-        if (isEditMode) {
-            database.ref(`menu/${currentEditItemId}`).update(itemData)
-                .then(() => {
-                    closeMenuItemModal();
-                });
-        } else {
-            database.ref('menu').push(itemData)
-                .then(() => {
-                    closeMenuItemModal();
-                });
-        }
-    });
-
-    // إلغاء النموذج
-    cancelMenuItemBtn.addEventListener('click', closeMenuItemModal);
 
     // إغلاق النموذج
     function closeMenuItemModal() {
         menuItemModal.classList.add('hidden');
     }
 
-    // تحميل الطلبات عند البدء
-    loadOrders();
+    // معالجة تقديم نموذج العنصر
+    function handleMenuItemSubmit(e) {
+        e.preventDefault();
+        
+        // التحقق من صحة البيانات
+        if (!itemNameInput.value.trim()) {
+            showMessage('الرجاء إدخال اسم الصنف', 'error');
+            itemNameInput.focus();
+            return;
+        }
+        
+        const price = parseFloat(itemPriceInput.value);
+        if (isNaN(price) {
+            showMessage('الرجاء إدخال سعر صحيح', 'error');
+            itemPriceInput.focus();
+            return;
+        }
+        
+        const itemData = {
+            name: itemNameInput.value.trim(),
+            category: itemCategoryInput.value,
+            price: price,
+            description: itemDescriptionInput.value.trim() || null
+        };
+        
+        if (isEditMode) {
+            // حالة التعديل
+            database.ref(`menu/${currentEditItemId}`).update(itemData)
+                .then(() => {
+                    closeMenuItemModal();
+                    showMessage('تم تحديث الصنف بنجاح', 'success');
+                })
+                .catch(error => {
+                    showMessage('حدث خطأ أثناء التحديث: ' + error.message, 'error');
+                });
+        } else {
+            // حالة الإضافة
+            database.ref('menu').push(itemData)
+                .then(() => {
+                    closeMenuItemModal();
+                    showMessage('تم إضافة الصنف بنجاح', 'success');
+                })
+                .catch(error => {
+                    showMessage('حدث خطأ أثناء الإضافة: ' + error.message, 'error');
+                });
+        }
+    }
+
+    // وظائف مساعدة
+    function getStatusText(status) {
+        const statusMap = {
+            'pending': 'قيد الانتظار',
+            'preparing': 'قيد التحضير',
+            'ready': 'جاهزة للتقديم',
+            'completed': 'مكتملة'
+        };
+        return statusMap[status] || status;
+    }
+
+    function getCategoryText(category) {
+        const categoryMap = {
+            'hot-drinks': 'مشروبات ساخنة',
+            'cold-drinks': 'مشروبات باردة',
+            'food': 'أطعمة'
+        };
+        return categoryMap[category] || category;
+    }
+
+    function formatTime(timestamp) {
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('ar-EG') + ' - ' + date.toLocaleDateString('ar-EG');
+    }
+
+    function showMessage(message, type) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}`;
+        messageDiv.textContent = message;
+        document.body.appendChild(messageDiv);
+        
+        setTimeout(() => {
+            messageDiv.remove();
+        }, 3000);
+    }
+
+    function showLoading(container) {
+        container.innerHTML = '<div class="loading-spinner"></div>';
+    }
 });
