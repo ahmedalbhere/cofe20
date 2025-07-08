@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>كافيه أونلاين - لوحة التحكم</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>لوحة تحكم كافيه أونلاين</h1>
+            <div class="admin-tabs">
+                <button class="tab-btn active" data-tab="orders">الطلبات</button>
+                <button class="tab-btn" data-tab="menu">إدارة القائمة</button>
+            </div>
+        </header>
+
+        <div class="tab-content active" id="ordersTab">
+            <h2>الطلبات الحالية</h2>
+            <div class="order-filters">
+                <select id="orderStatusFilter">
+                    <option value="all">جميع الطلبات</option>
+                    <option value="pending">قيد الانتظار</option>
+                    <option value="preparing">قيد التحضير</option>
+                    <option value="ready">جاهزة للتقديم</option>
+                    <option value="completed">مكتملة</option>
+                </select>
+            </div>
+            <div class="orders-list" id="ordersList">
+                <!-- سيتم ملؤها بالطلبات من Firebase -->
+            </div>
+        </div>
+
+        <div class="tab-content" id="menuTab">
+            <h2>إدارة القائمة</h2>
+            <button id="addMenuItemBtn">إضافة صنف جديد</button>
+            <div class="menu-items-list" id="menuItemsList">
+                <!-- سيتم ملؤها بعناصر القائمة من Firebase -->
+            </div>
+
+            <div class="modal hidden" id="menuItemModal">
+                <div class="modal-content">
+                    <h3 id="modalTitle">إضافة صنف جديد</h3>
+                    <form id="menuItemForm">
+                        <input type="hidden" id="itemId">
+                        <div class="form-group">
+                            <label for="itemName">اسم الصنف:</label>
+                            <input type="text" id="itemName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="itemCategory">الفئة:</label>
+                            <select id="itemCategory" required>
+                                <option value="hot-drinks">مشروبات ساخنة</option>
+                                <option value="cold-drinks">مشروبات باردة</option>
+                                <option value="food">أطعمة</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="itemPrice">السعر (ج.م):</label>
+                            <input type="number" id="itemPrice" min="0" step="0.1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="itemDescription">الوصف (اختياري):</label>
+                            <textarea id="itemDescription"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" id="cancelMenuItemBtn">إلغاء</button>
+                            <button type="submit" id="saveMenuItemBtn">حفظ</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="js/firebase.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>
